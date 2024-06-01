@@ -47,11 +47,12 @@ trait QueriesRelationships
         // the subquery to only run a "where exists" clause instead of this full "count"
         // clause. This will make these queries run much faster compared with a count.
         $method = $this->canUseExistsForExistenceCheck($operator, $count)
-                        ? 'getRelationExistenceQuery'
-                        : 'getRelationExistenceCountQuery';
+            ? 'getRelationExistenceQuery'
+            : 'getRelationExistenceCountQuery';
 
         $hasQuery = $relation->{$method}(
-            $relation->getRelated()->newQueryWithoutRelationships(), $this
+            $relation->getRelated()->newQueryWithoutRelationships(),
+            $this
         );
 
         // Next we will call any given callback as an "anonymous" scope so they can get the
@@ -62,7 +63,11 @@ trait QueriesRelationships
         }
 
         return $this->addHasWhere(
-            $hasQuery, $relation, $operator, $count, $boolean
+            $hasQuery,
+            $relation,
+            $operator,
+            $count,
+            $boolean
         );
     }
 
@@ -250,7 +255,7 @@ trait QueriesRelationships
                     }
 
                     $query->where($this->qualifyColumn($relation->getMorphType()), '=', (new $type)->getMorphClass())
-                                ->whereHas($belongsTo, $callback, $operator, $count);
+                        ->whereHas($belongsTo, $callback, $operator, $count);
                 });
             }
         }, null, null, $boolean);
@@ -448,6 +453,23 @@ trait QueriesRelationships
         });
     }
 
+    public function whereAnyRelation($relationsWithFields, $operator = null, $value = null)
+    {
+        return $this->where(function ($query) use ($relationsWithFields, $operator, $value) {
+            foreach ($relationsWithFields as $relation => $fields) {
+                $query->orWhereHas($relation, function ($subQuery) use ($fields, $operator, $value) {
+                    if (is_string($fields)) {
+                        $fields = explode(', ', $fields);
+                    }
+                    foreach ($fields as $field) {
+                        $subQuery->where($field, $operator, $value);
+                    }
+                });
+            }
+        });
+    }
+
+
     /**
      * Add a morph-to relationship condition to the query.
      *
@@ -468,7 +490,7 @@ trait QueriesRelationships
         if (is_string($model)) {
             $morphMap = Relation::morphMap();
 
-            if (! empty($morphMap) && in_array($model, $morphMap)) {
+            if (!empty($morphMap) && in_array($model, $morphMap)) {
                 $model = array_search($model, $morphMap, true);
             }
 
@@ -497,7 +519,7 @@ trait QueriesRelationships
         if (is_string($model)) {
             $morphMap = Relation::morphMap();
 
-            if (! empty($morphMap) && in_array($model, $morphMap)) {
+            if (!empty($morphMap) && in_array($model, $morphMap)) {
                 $model = array_search($model, $morphMap, true);
             }
 
@@ -546,7 +568,7 @@ trait QueriesRelationships
      */
     public function whereBelongsTo($related, $relationshipName = null, $boolean = 'and')
     {
-        if (! $related instanceof Collection) {
+        if (!$related instanceof Collection) {
             $relatedCollection = $related->newCollection([$related]);
         } else {
             $relatedCollection = $related;
@@ -568,7 +590,7 @@ trait QueriesRelationships
             throw RelationNotFoundException::make($this->model, $relationshipName);
         }
 
-        if (! $relationship instanceof BelongsTo) {
+        if (!$relationship instanceof BelongsTo) {
             throw RelationNotFoundException::make($this->model, $relationshipName, BelongsTo::class);
         }
 
@@ -610,7 +632,7 @@ trait QueriesRelationships
         }
 
         if (is_null($this->query->columns)) {
-            $this->query->select([$this->query->from.'.*']);
+            $this->query->select([$this->query->from . '.*']);
         }
 
         $relations = is_array($relations) ? $relations : [$relations];
@@ -649,7 +671,9 @@ trait QueriesRelationships
             // as a sub-select. First, we'll get the "has" query and use that to get the relation
             // sub-query. We'll format this relationship name and append this column if needed.
             $query = $relation->getRelationExistenceQuery(
-                $relation->getRelated()->newQuery(), $this, new Expression($expression)
+                $relation->getRelated()->newQuery(),
+                $this,
+                new Expression($expression)
             )->setBindings([], 'select');
 
             $query->callScope($constraints);
@@ -793,8 +817,8 @@ trait QueriesRelationships
         $hasQuery->mergeConstraintsFrom($relation->getQuery());
 
         return $this->canUseExistsForExistenceCheck($operator, $count)
-                ? $this->addWhereExistsQuery($hasQuery->toBase(), $boolean, $operator === '<' && $count === 1)
-                : $this->addWhereCountQuery($hasQuery->toBase(), $operator, $count, $boolean);
+            ? $this->addWhereExistsQuery($hasQuery->toBase(), $boolean, $operator === '<' && $count === 1)
+            : $this->addWhereCountQuery($hasQuery->toBase(), $operator, $count, $boolean);
     }
 
     /**
@@ -820,7 +844,8 @@ trait QueriesRelationships
         return $this->withoutGlobalScopes(
             $from->removedScopes()
         )->mergeWheres(
-            $wheres, $whereBindings
+            $wheres,
+            $whereBindings
         );
     }
 
@@ -836,8 +861,8 @@ trait QueriesRelationships
     {
         return collect($wheres)->map(function ($where) use ($from, $to) {
             return collect($where)->map(function ($value) use ($from, $to) {
-                return is_string($value) && str_starts_with($value, $from.'.')
-                    ? $to.'.'.Str::afterLast($value, '.')
+                return is_string($value) && str_starts_with($value, $from . '.')
+                    ? $to . '.' . Str::afterLast($value, '.')
                     : $value;
             });
         })->toArray();
@@ -857,7 +882,7 @@ trait QueriesRelationships
         $this->query->addBinding($query->getBindings(), 'where');
 
         return $this->where(
-            new Expression('('.$query->toSql().')'),
+            new Expression('(' . $query->toSql() . ')'),
             $operator,
             is_numeric($count) ? new Expression($count) : $count,
             $boolean
